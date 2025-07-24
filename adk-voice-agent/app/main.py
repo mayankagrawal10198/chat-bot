@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.websockets import WebSocketDisconnect
 
-from jarvis.agent import root_agent
+from app.jarvis.agent_cloud import root_agent
 from dotenv import load_dotenv
 
 #
@@ -54,7 +54,9 @@ async def start_agent_session(user_id, is_audio=False):
             output_audio_transcription={},
         )
     else:
-        run_config = RunConfig(response_modalities=[modality])
+        run_config = RunConfig(
+            response_modalities=[modality]
+        )
 
     # Create a LiveRequestQueue for this session
     live_request_queue = LiveRequestQueue()
@@ -174,8 +176,8 @@ async def client_to_agent_messaging(
 #
 app = FastAPI()
 
-STATIC_DIR = Path("static")
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/")

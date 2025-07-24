@@ -8,7 +8,7 @@
 
 // Global variables
 const sessionId = Math.random().toString().substring(10);
-const ws_url = "ws://" + window.location.host + "/ws/" + sessionId;
+const ws_url = (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host + "/ws/" + sessionId;
 let websocket = null;
 let is_audio = false;
 let currentMessageId = null; // Track the current message ID during a conversation turn
@@ -28,6 +28,7 @@ const recordingContainer = document.getElementById("recording-container");
 function connectWebsocket() {
   // Connect websocket
   const wsUrl = ws_url + "?is_audio=" + is_audio;
+  console.log("Attempting to connect to:", wsUrl);
   websocket = new WebSocket(wsUrl);
 
   // Handle connection open
@@ -40,6 +41,31 @@ function connectWebsocket() {
     // Enable the Send button
     document.getElementById("sendButton").disabled = false;
     addSubmitHandler();
+  };
+
+  // Handle connection errors
+  websocket.onerror = function (error) {
+    console.error("WebSocket error:", error);
+    connectionStatus.textContent = "Connection Error";
+    statusDot.classList.remove("connected");
+    statusDot.classList.add("error");
+  };
+
+  // Handle connection close
+  websocket.onclose = function (event) {
+    console.log("WebSocket connection closed:", event.code, event.reason);
+    connectionStatus.textContent = "Disconnected";
+    statusDot.classList.remove("connected");
+    statusDot.classList.remove("error");
+    
+    // Disable the Send button
+    document.getElementById("sendButton").disabled = true;
+    
+    // Try to reconnect after 3 seconds
+    setTimeout(function() {
+      console.log("Attempting to reconnect...");
+      connectWebsocket();
+    }, 3000);
   };
 
   // Handle incoming messages

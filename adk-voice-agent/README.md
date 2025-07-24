@@ -156,3 +156,6 @@ If you encounter issues installing the required packages:
 - The OAuth token is stored securely in your user directory
 - Never share your `credentials.json` file or the generated token
 - The application only requests the minimum permissions needed for calendar operations
+
+# Deployment Command
+   gcloud run deploy adk-voice-agent --source . --platform managed --region us-central1 --allow-unauthenticated --port 8080 --memory 2Gi --cpu 2 --set-env-vars GOOGLE_API_KEY=YOUR_API_KEY
