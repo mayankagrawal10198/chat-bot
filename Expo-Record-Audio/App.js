@@ -40,7 +40,7 @@ export default function App() {
         websocket.close();
       }
 
-      const ws_url = `ws://192.168.29.136:8000/ws/${sessionId}?is_audio=${isAudioEnabled}`;
+      const ws_url = `wss://adk-voice-agent-449756804964.us-central1.run.app/ws/${sessionId}?is_audio=${isAudioEnabled}`;
       console.log('Connecting to WebSocket:', ws_url);
       const ws = new WebSocket(ws_url);
 
