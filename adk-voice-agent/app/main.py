@@ -16,9 +16,13 @@ from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.websockets import WebSocketDisconnect
+from pydantic import BaseModel
+from fastapi import Body
 
-from app.jarvis.agent_cloud import root_agent
+from app.jarvis.agent import root_agent
 from dotenv import load_dotenv
+from app.kisaan_info import kisaan_info_agent
+from app.kisaan_info.tools import get_current_weather, get_weather_forecast
 
 #
 # ADK Streaming Setup
@@ -224,3 +228,41 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, is_audio: str):
 
     # Disconnected
     print(f"Client #{user_id} disconnected")
+
+
+async def get_kisaan_info_weather_response(lat: float, lon: float, days: int = 1, user_id: str = "weather_user") -> str:
+    """Get summarized weather response from kisaan_info_agent for given lat/lon/days."""
+    from google.genai.types import Content, Part
+    from google.adk.runners import Runner
+
+    runner = Runner(
+        app_name=APP_NAME,
+        session_service=session_service,
+        agent=kisaan_info_agent,
+    )
+    
+    # Get or create session
+    session = session_service.get_session(app_name=APP_NAME, user_id=user_id)
+    if session is None:
+        session = session_service.create_session(app_name=APP_NAME, user_id=user_id, state={})
+
+    # Run the agent with structured input
+    response = await kisaan_info_agent.run(
+        session=session,
+        user_input={"lat": lat, "lon": lon, "days": days}
+    )
+
+    return response.text
+
+class KisaanWeatherRequest(BaseModel):
+    lat: float
+    lon: float
+    days: int = 1
+
+@app.post("/kisaan_info/weather")
+async def kisaan_info_weather(request: KisaanWeatherRequest = Body(...)):
+    """
+    Get summarized weather info for a given latitude and longitude using kisaan_info_agent.
+    """
+    summary = await get_kisaan_info_weather_response(request.lat, request.lon, request.days)
+    return {"summary": summary}
