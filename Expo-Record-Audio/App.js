@@ -1,8 +1,20 @@
 import React from 'react';
-import { StyleSheet, Text, View, Button, TextInput, ScrollView, Alert, TouchableOpacity, KeyboardAvoidingView, SafeAreaView, Platform } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Button,
+  TextInput,
+  ScrollView,
+  Alert,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  SafeAreaView,
+  Platform,
+} from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-
+ 
 // Helper function to convert base64 to an ArrayBuffer
 function base64ToArrayBuffer(base64) {
   const binaryString = atob(base64);
@@ -13,7 +25,7 @@ function base64ToArrayBuffer(base64) {
   }
   return bytes.buffer;
 }
-
+ 
 export default function App() {
   // Chat functionality
   const [messages, setMessages] = React.useState([]);
@@ -22,12 +34,12 @@ export default function App() {
   const [websocket, setWebsocket] = React.useState(null);
   const [sessionId] = React.useState(Math.random().toString().substring(10));
   const [currentMessageId, setCurrentMessageId] = React.useState(null);
-
+ 
   // Audio functionality
-  const [isAudioEnabled, setIsAudioEnabled] = React.useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = React.useState(true);
   const [isRecording, setIsRecording] = React.useState(false);
   const [recording, setRecording] = React.useState(null);
-  
+ 
   // Connect to WebSocket server
   const connectWebSocket = () => {
     try {
@@ -39,62 +51,74 @@ export default function App() {
         console.log('Closing existing WebSocket connection');
         websocket.close();
       }
-
+ 
       const ws_url = `wss://adk-voice-agent-449756804964.us-central1.run.app/ws/${sessionId}?is_audio=${isAudioEnabled}`;
+      // const ws_url = `wss://kissan-dost-backend-528893316203.us-central1.run.app/ws/${sessionId}?is_audio=${isAudioEnabled}`;
+      // const ws_url = `ws://10.0.2.2:8000/ws/${sessionId}?is_audio=${isAudioEnabled}`; // For Android emulator
+      // const ws_url = `ws://localhost:8000/ws/${sessionId}?is_audio=${isAudioEnabled}`; // For iOS simulator
       console.log('Connecting to WebSocket:', ws_url);
       const ws = new WebSocket(ws_url);
-
+ 
       ws.onopen = () => {
         console.log('WebSocket connected');
         setIsConnected(true);
       };
-      
+ 
       let audioBuffer = []; // Create a buffer for this connection
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
-
-        // If it's audio, buffer it
-        if (message.mime_type === 'audio/pcm' && message.data) {
+        console.log('📨 Received message:', message.mime_type, 'data length:', message.data?.length || 0);
+ 
+        // If it's audio, buffer it (only when voice is enabled)
+        if (message.mime_type === 'audio/pcm' && message.data && isAudioEnabled) {
           audioBuffer.push(message.data);
         }
-        
+ 
         // If it's text, update the message content
         if (message.mime_type === 'text/plain') {
-            addMessage('model', message.data, currentMessageId);
+          addMessage('model', message.data, currentMessageId);
         }
-
+ 
         // If the turn is complete, play the buffered audio and finalize the message
         if (message.turn_complete) {
-          if (audioBuffer.length > 0) {
+          if (audioBuffer.length > 0 && isAudioEnabled) {
             const completeAudioData = audioBuffer.join('');
+            console.log('🎵 Complete audio data length:', completeAudioData.length);
             playAudioResponse(completeAudioData);
             audioBuffer = []; // Clear the buffer for the next turn
           }
           setCurrentMessageId(null); // End the current message turn
         }
       };
-
+ 
       ws.onclose = () => {
         console.log('WebSocket disconnected');
         setIsConnected(false);
       };
-
+ 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         Alert.alert('Connection Error', 'Could not connect to the server.');
       };
-
+ 
       setWebsocket(ws);
     } catch (error) {
       console.error('WebSocket connection failed:', error);
-      Alert.alert('Connection Failed', 'An error occurred while trying to connect.');
+      Alert.alert(
+        'Connection Failed',
+        'An error occurred while trying to connect.'
+      );
     }
   };
-  
+ 
   // Function to add a new message or update an existing one
   const addMessage = (role, text, messageId = null) => {
     if (messageId) {
-      setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, text: msg.text + text } : msg));
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, text: msg.text + text } : msg
+        )
+      );
     } else {
       const newMessage = {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -104,10 +128,10 @@ export default function App() {
       if (role === 'model') {
         setCurrentMessageId(newMessage.id);
       }
-      setMessages(prev => [...prev, newMessage]);
+      setMessages((prev) => [...prev, newMessage]);
     }
   };
-
+ 
   // Send text message to server
   const sendMessage = () => {
     if (!userInput.trim()) return;
@@ -115,30 +139,30 @@ export default function App() {
       Alert.alert('Not Connected', 'Please wait for connection to establish.');
       return;
     }
-
+ 
     const message = {
       mime_type: 'text/plain',
       data: userInput,
       role: 'user',
     };
-
+ 
     websocket.send(JSON.stringify(message));
     addMessage('user', userInput);
     setUserInput('');
   };
-
+ 
   // Enable voice mode
   const enableAudio = () => {
     if (!isAudioEnabled) {
       setIsAudioEnabled(true);
     }
   };
-
+ 
   // Disable voice mode
   const disableAudio = () => {
     setIsAudioEnabled(false);
   };
-  
+ 
   // Start and Stop Audio Recording
   const startRecording = async () => {
     try {
@@ -148,19 +172,21 @@ export default function App() {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-
+ 
       console.log('Starting recording..');
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       setRecording(recording);
       setIsRecording(true);
-      console.log('Audio streaming started - will send complete file when recording stops');
+      console.log(
+        'Audio streaming started - will send complete file when recording stops'
+      );
     } catch (err) {
       console.error('Failed to start recording', err);
     }
   };
-
+ 
   const stopRecording = async () => {
     console.log('Stopping recording..');
     setIsRecording(false);
@@ -171,77 +197,91 @@ export default function App() {
     }
     setRecording(null);
   };
-
+ 
   const sendAudioFile = async (uri) => {
     try {
       console.log('=== SENDING AUDIO FILE ===');
       console.log('Audio file URI:', uri);
-      
+ 
       const response = await fetch(uri);
       const blob = await response.blob();
-      
+ 
       console.log('Audio blob size:', blob.size, 'bytes');
       console.log('Audio blob type:', blob.type);
-      
+ 
       const reader = new FileReader();
       reader.onload = () => {
         const base64Data = reader.result.split(',')[1];
-        
+ 
         console.log('Base64 audio data length:', base64Data.length);
         console.log('WebSocket state:', websocket?.readyState);
-        
+ 
         if (websocket && websocket.readyState === WebSocket.OPEN) {
           const message = {
             mime_type: 'audio/m4a',
             data: base64Data,
-            role: 'user'
+            role: 'user',
           };
-          
+ 
           console.log('🚀 Sending audio/m4a message to server...');
           websocket.send(JSON.stringify(message));
           console.log('✅ Audio data sent to server successfully');
-          
         } else {
           console.error('❌ WebSocket not ready for audio transmission');
-          addMessage('system', 'Error: Could not send audio. Please check your connection.');
+          addMessage(
+            'system',
+            'Error: Could not send audio. Please check your connection.'
+          );
         }
       };
-      
+ 
       reader.onerror = (error) => {
         console.error('Error reading audio file:', error);
       };
-      
+ 
       reader.readAsDataURL(blob);
     } catch (err) {
       console.error('❌ Error sending audio file:', err);
       addMessage('system', 'Error: Could not send audio file.');
     }
   };
-
+ 
   const playAudioResponse = async (audioData) => {
     try {
       console.log('🎵 Playing audio response, data length:', audioData.length);
       
+      // Only play audio if voice is enabled
+      if (!isAudioEnabled) {
+        console.log('🎵 Voice disabled, skipping audio playback');
+        return;
+      }
+ 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
         shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false
+        playThroughEarpieceAndroid: false,
       });
+ 
+      // Convert base64 to Uint8Array
+      const binaryString = atob(audioData);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
       
-      const arrayBuffer = base64ToArrayBuffer(audioData);
-      
-      const sampleRate = 16000;
+      const sampleRate = 24000; // or your server's sample rate
       const numChannels = 1;
       const bitsPerSample = 16;
       const byteRate = sampleRate * numChannels * bitsPerSample / 8;
       const blockAlign = numChannels * bitsPerSample / 8;
-      const dataSize = arrayBuffer.byteLength;
+      const dataSize = bytes.length;
       
-      const wavHeader = new ArrayBuffer(44);
-      const view = new DataView(wavHeader);
-      
+      // Create WAV header
+      const wavHeader = new Uint8Array(44);
+      const view = new DataView(wavHeader.buffer);
       view.setUint32(0, 0x52494646, false); // "RIFF"
       view.setUint32(4, 36 + dataSize, true); // ChunkSize
       view.setUint32(8, 0x57415645, false); // "WAVE"
@@ -256,73 +296,90 @@ export default function App() {
       view.setUint32(36, 0x64617461, false); // "data"
       view.setUint32(40, dataSize, true); // Subchunk2Size
       
-      const wavBlob = new Blob([wavHeader, arrayBuffer], { type: 'audio/wav' });
+      // Combine header and audio data
+      const wavData = new Uint8Array(44 + dataSize);
+      wavData.set(wavHeader, 0);
+      wavData.set(bytes, 44);
       
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const audioUri = e.target.result;
-        try {
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: audioUri },
-            { shouldPlay: true, volume: 1.0 }
-          );
-          console.log('✅ Audio playback started successfully');
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.didJustFinish) {
-              console.log('🎵 Audio playback finished');
-              sound.unloadAsync();
-            }
-          });
-        } catch (err) {
-          console.error('❌ Audio playback failed:', err);
-          addMessage('system', '❌ Audio playback failed.');
-        }
-      };
-      reader.readAsDataURL(wavBlob);
-      console.log('🎵 Created WAV audio with header');
+      // Convert to base64 data URL - Fix for large arrays
+      let base64Data = '';
+      const chunkSize = 8192; // Process in chunks to avoid stack overflow
+      for (let i = 0; i < wavData.length; i += chunkSize) {
+        const chunk = wavData.slice(i, i + chunkSize);
+        base64Data += String.fromCharCode.apply(null, chunk);
+      }
+      base64Data = btoa(base64Data);
+      const audioUri = `data:audio/wav;base64,${base64Data}`;
       
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true, volume: 1.0 }
+        );
+        console.log('✅ Audio playback started successfully');
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish) {
+            console.log('🎵 Audio playback finished');
+            sound.unloadAsync();
+          }
+        });
+      } catch (err) {
+        console.error('❌ Audio playback failed:', err);
+        addMessage('system', '❌ Audio playback failed.');
+      }
     } catch (err) {
       console.error('Error playing audio:', err);
       addMessage('system', 'Error playing audio response.');
     }
   };
-
+ 
   const testAudio = async () => {
     try {
       console.log('🔊 Testing audio playback...');
-      
-      const sampleRate = 16000;
+ 
+      const sampleRate = 24000;
       const duration = 1.0;
       const frequency = 440;
-      
+ 
       const samples = sampleRate * duration;
       const audioData = new Int16Array(samples);
-      
+ 
       for (let i = 0; i < samples; i++) {
-        audioData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 16384;
+        audioData[i] =
+          Math.sin((2 * Math.PI * frequency * i) / sampleRate) * 16384;
       }
-      
-      const base64Data = btoa(String.fromCharCode(...new Uint8Array(audioData.buffer)));
-      
+ 
+      const base64Data = btoa(
+        String.fromCharCode(...new Uint8Array(audioData.buffer))
+      );
+ 
       await playAudioResponse(base64Data);
-      
     } catch (err) {
       console.error('❌ Test audio failed:', err);
       addMessage('system', '❌ Audio test failed');
     }
   };
-
+ 
   React.useEffect(() => {
-    if (!websocket || websocket.readyState === WebSocket.CLOSED) {
-      connectWebSocket();
+    // Always reconnect when isAudioEnabled changes
+    if (websocket) {
+      console.log('Audio mode changed, reconnecting WebSocket...');
+      websocket.close();
     }
+    
+    // Small delay to ensure clean closure before reconnecting
+    const timer = setTimeout(() => {
+      connectWebSocket();
+    }, 100);
+    
     return () => {
+      clearTimeout(timer);
       if (websocket) {
         websocket.close();
       }
     };
   }, [isAudioEnabled]);
-
+ 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -337,7 +394,7 @@ export default function App() {
             </View>
           ))}
         </ScrollView>
-
+ 
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -346,23 +403,27 @@ export default function App() {
             onChangeText={setUserInput}
             editable={!isAudioEnabled}
           />
-          <TouchableOpacity style={styles.sendButton} onPress={sendMessage} disabled={isAudioEnabled}>
+          <TouchableOpacity
+            style={styles.sendButton}
+            onPress={sendMessage}
+            disabled={isAudioEnabled}
+          >
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
         </View>
-
+ 
         <View style={styles.audioControlsContainer}>
           {!isAudioEnabled ? (
             <View style={styles.audioButtonRow}>
-              <TouchableOpacity 
-                style={[styles.audioButton, styles.enableAudioButton]} 
+              <TouchableOpacity
+                style={[styles.audioButton, styles.enableAudioButton]}
                 onPress={enableAudio}
                 disabled={!isConnected}
               >
                 <Text style={styles.audioButtonText}>🎤 Enable Voice</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.audioButton, styles.testButton]} 
+              <TouchableOpacity
+                style={[styles.audioButton, styles.testButton]}
                 onPress={testAudio}
               >
                 <Text style={styles.audioButtonText}>🔊 Test Audio</Text>
@@ -370,8 +431,8 @@ export default function App() {
             </View>
           ) : (
             <View style={styles.audioButtonRow}>
-              <TouchableOpacity 
-                style={[styles.audioButton, styles.disableAudioButton]} 
+              <TouchableOpacity
+                style={[styles.audioButton, styles.disableAudioButton]}
                 onPress={disableAudio}
               >
                 <Text style={styles.audioButtonText}>✖️ Disable Voice</Text>
@@ -394,7 +455,7 @@ export default function App() {
     </SafeAreaView>
   );
 }
-
+ 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -490,4 +551,3 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800',
   },
 });
-
