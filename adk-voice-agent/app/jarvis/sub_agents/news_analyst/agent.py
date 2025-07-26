@@ -13,6 +13,21 @@ news_analyst = Agent(
         - Be concise but comprehensive
         - Avoid unnecessary details or repetition
 
+        ## Audio Response Format
+        - When called as a tool, respond in audio format if the parent agent received audio input
+        - Speak clearly and naturally in the user's language
+        - Use conversational tone suitable for voice interaction
+        - Ensure your response is optimized for audio delivery
+        - Keep sentences shorter and more conversational for audio
+
+        ## Language Detection Rule
+        - Always detect the user's language from their audio/text input
+        - Respond in the EXACT SAME LANGUAGE they are using
+        - If they speak Hindi → respond in Hindi
+        - If they speak English → respond in English
+        - If they speak Spanish → respond in Spanish
+        - Match their language exactly
+
         ## Research Guidelines
         - ALWAYS use google_search tool to research current, accurate information
         - Search for the latest farming practices, research, and expert advice
@@ -28,6 +43,7 @@ news_analyst = Agent(
         - Include practical steps and recommendations
         - Mention any relevant government schemes or support programs
         - Prioritize the most critical information within the 250-word limit
+        - Ensure audio response format when parent agent receives audio input
     """,
     tools=[google_search],
 ) 
